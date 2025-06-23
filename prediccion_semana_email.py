@@ -255,5 +255,5 @@ resumen_df["Día"] = pd.to_datetime(resumen_df["Fecha"]).dt.strftime("%A").str.c
 resumen_df = resumen_df[["Fecha", "Comidas", "Cenas", "Día"]]
 
 # === ENVÍO DE EMAIL ===
-#enviar_email(resumen_df)
-print(resumen_df.to_string(index=False))
+enviar_email(resumen_df)
+#print(resumen_df.to_string(index=False))
