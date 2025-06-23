@@ -11,6 +11,8 @@ import holidays
 import locale
 import calendar
 from datetime import datetime, timedelta
+import argparse
+
 locale.setlocale(locale.LC_TIME, 'es_ES.UTF-8') 
 
 # === CONFIGURACIÓN ===
@@ -226,15 +228,22 @@ modelo_comidas.fit(X_train, y_train_com)
 modelo_cenas.fit(X_train, y_train_cen)
 
 # === PREDICCIÓN DE LA SEMANA SIGUIENTE (lunes a domingo) ===
+# Parámetro opcional: poner aquí una fecha como string 'YYYY-MM-DD' o dejar como None
+parser = argparse.ArgumentParser(description="Predicción de comidas y cenas para una semana.")
+parser.add_argument("--fecha_inicio", type=str, help="Fecha opcional de inicio en formato YYYY-MM-DD")
+args = parser.parse_args()
 
-hoy = datetime.now().date()
-dias_hasta_lunes = (7 - hoy.weekday()) % 7
-proximo_lunes = hoy + timedelta(days=dias_hasta_lunes)
-ayer = hoy - timedelta(days=1)
+fecha_inicio_str = args.fecha_inicio
 
-#fechas_prediccion = [proximo_lunes + timedelta(days=i) for i in range(7)]
+if fecha_inicio_str:
+    fecha_base = datetime.strptime(fecha_inicio_str, "%Y-%m-%d").date()
+else:
+    hoy = datetime.now().date()
+    dias_hasta_lunes = (7 - hoy.weekday()) % 7
+    fecha_base = hoy + timedelta(days=dias_hasta_lunes)
+
+fechas_prediccion = [fecha_base  + timedelta(days=i) for i in range(7)]
 #fechas_prediccion = [hoy + timedelta(days=i) for i in range(7)]
-fechas_prediccion = [ayer + timedelta(days=i) for i in range(7)]
 predicciones = []
 
 for fecha in fechas_prediccion:
@@ -242,6 +251,9 @@ for fecha in fechas_prediccion:
     predicciones.append({"Fecha": fecha.strftime("%Y-%m-%d"), "Comidas": comidas, "Cenas": cenas})
 
 resumen_df = pd.DataFrame(predicciones)
+resumen_df["Día"] = pd.to_datetime(resumen_df["Fecha"]).dt.strftime("%A").str.capitalize()
+resumen_df = resumen_df[["Fecha", "Comidas", "Cenas", "Día"]]
 
 # === ENVÍO DE EMAIL ===
 enviar_email(resumen_df)
+#print(resumen_df.to_string(index=False))
