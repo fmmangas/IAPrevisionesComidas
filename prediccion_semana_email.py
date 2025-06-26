@@ -12,6 +12,7 @@ import locale
 import calendar
 from datetime import datetime, timedelta
 import argparse
+import locale
 
 locale.setlocale(locale.LC_TIME, 'es_ES.UTF-8') 
 
@@ -163,7 +164,7 @@ def predecir(fecha, modelo_comidas, modelo_cenas, eventos_especiales, es_holiday
     return pred_com, pred_cen
 
 
-def enviar_email(resumen_df):
+"""def enviar_email(resumen_df):
     asunto = "📅 Predicción semanal de comidas y cenas - Hotel Eriste"
     cuerpo = resumen_df.to_string(index=False)
 
@@ -183,6 +184,84 @@ def enviar_email(resumen_df):
         print("✅ Email enviado correctamente.")
     except Exception as e:
         print(f"❌ Error al enviar email: {e}")
+"""
+
+def enviar_email(resumen_df, pivot):
+    from email.mime.text import MIMEText  # por si no lo tienes arriba
+    import calendar
+
+    # Convertir índice en columna, por si 'fecha' es el índice
+    if "fecha" not in resumen_df.columns:
+        resumen_df = resumen_df.reset_index()
+
+    # Asegurar que "fecha" es columna
+    if resumen_df.index.name == "fecha":
+        resumen_df = resumen_df.reset_index()
+
+    # Calcular percentiles de comidas y cenas a partir del histórico (pivot)
+    comida_p33 = pivot["n_comidas"].quantile(0.40)
+    comida_p66 = pivot["n_comidas"].quantile(0.70)
+    cena_p33 = pivot["n_cenas"].quantile(0.40)
+    cena_p66 = pivot["n_cenas"].quantile(0.70)
+
+    # Función para pintar fondo según valor y percentiles
+    def color_celda(valor, p33, p66):
+        if valor <= p33:
+            return "#c8e6c9"  # verde claro
+        elif valor <= p66:
+            return "#fff9c4"  # amarillo claro
+        else:
+            return "#ffcdd2"  # rojo claro
+
+    # Construir HTML
+    html = """
+    <html><body>
+    <p>Hola, aquí tienes la predicción de comidas y cenas para la próxima semana:</p>
+    <table border="1" cellpadding="6" cellspacing="0" style="border-collapse: collapse; text-align: center;">
+        <tr>
+            <th>Día</th><th>Fecha</th><th>Comidas</th><th>Cenas</th>
+        </tr>
+    """
+
+    for _, fila in resumen_df.iterrows():
+        fecha = pd.to_datetime(fila["Fecha"])
+        dia_semana = calendar.day_name[fecha.weekday()]  # Ej: 'Monday'
+        comidas = int(fila["Comidas"])
+        cenas = int(fila["Cenas"])
+
+        color_comida = color_celda(comidas, comida_p33, comida_p66)
+        color_cena = color_celda(cenas, cena_p33, cena_p66)
+
+        html += f"""
+        <tr>
+            <td>{dia_semana}</td>
+            <td>{fecha.strftime('%d/%m/%Y')}</td>
+            <td style="background-color: {color_comida};">{comidas}</td>
+            <td style="background-color: {color_cena};">{cenas}</td>
+        </tr>
+        """
+
+    html += "</table></body></html>"
+
+    # Crear mensaje
+    mensaje = MIMEMultipart("alternative")
+    mensaje["From"] = SMTP_USER
+    mensaje["To"] = DESTINATARIO
+    mensaje["Subject"] = "📅 Predicción semanal de comidas y cenas - Hotel Eriste"
+    mensaje.attach(MIMEText(html, "html"))
+
+    # Enviar email
+    try:
+        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
+            server.starttls()
+            server.login(SMTP_USER, SMTP_PASSWORD)
+            server.send_message(mensaje)
+        print("✅ Email enviado correctamente.")
+    except Exception as e:
+        print(f"❌ Error al enviar email: {e}")
+
+
+
 
 
 # === PROCESAMIENTO HISTÓRICO ===
@@ -255,5 +334,5 @@ resumen_df["Día"] = pd.to_datetime(resumen_df["Fecha"]).dt.strftime("%A").str.c
 resumen_df = resumen_df[["Fecha", "Comidas", "Cenas", "Día"]]
 
 # === ENVÍO DE EMAIL ===
-enviar_email(resumen_df)
+enviar_email(resumen_df, pivot)
 #print(resumen_df.to_string(index=False))
