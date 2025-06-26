@@ -150,41 +150,63 @@ def parse_meals(data):
     return pd.DataFrame(registros)
 
 
-def predecir(fecha, modelo_comidas, modelo_cenas, eventos_especiales, es_holidays):
+def predecir(fecha, modelo_comidas, modelo_cenas, eventos_especiales, es_holidays, temp_max, precip_mm):
     dia_semana = fecha.weekday()
     mes = fecha.month
     festivo = 1 if fecha in es_holidays else 0
     evento = 1 if fecha.strftime("%Y-%m-%d") in eventos_especiales else 0
 
-    entrada = pd.DataFrame([[dia_semana, mes, festivo, evento]],
-                           columns=["día_semana", "mes", "festivo", "evento_especial"])
+    entrada = pd.DataFrame([[dia_semana, mes, festivo, evento, temp_max, precip_mm]],
+        columns=["día_semana", "mes", "festivo", "evento_especial", "temp_max", "precipitacion_mm"]
+    )
 
     pred_com = int(modelo_comidas.predict(entrada)[0])
     pred_cen = int(modelo_cenas.predict(entrada)[0])
     return pred_com, pred_cen
 
 
-"""def enviar_email(resumen_df):
-    asunto = "📅 Predicción semanal de comidas y cenas - Hotel Eriste"
-    cuerpo = resumen_df.to_string(index=False)
+def obtener_pronostico_tiempo(fechas, lat=42.597, lon=0.515):
+    fecha_inicio = min(fechas).strftime("%Y-%m-%d")
+    fecha_fin = max(fechas).strftime("%Y-%m-%d")
+    url = "https://api.open-meteo.com/v1/forecast"
+    params = {
+        "latitude": lat,
+        "longitude": lon,
+        "daily": "temperature_2m_max,precipitation_sum",
+        "timezone": "Europe/Madrid",
+        "start_date": fecha_inicio,
+        "end_date": fecha_fin
+    }
+    response = requests.get(url, params=params)
+    if response.status_code != 200:
+        raise Exception("Error al obtener datos meteorológicos")
 
-    mensaje = MIMEMultipart()
-    mensaje["From"] = SMTP_USER
-    mensaje["To"] = DESTINATARIO
-    mensaje["Subject"] = asunto
+    datos = response.json()["daily"]
+    tiempo_df = pd.DataFrame({
+        "fecha": datos["time"],
+        "temp_max": datos["temperature_2m_max"],
+        "precipitacion_mm": datos["precipitation_sum"]
+    })
+    tiempo_df["fecha"] = pd.to_datetime(tiempo_df["fecha"])
+    return tiempo_df
 
-    mensaje.attach(MIMEText("Hola, aquí tienes la predicción de comidas y cenas para la próxima semana:\n\n", "plain"))
-    mensaje.attach(MIMEText(cuerpo, "plain"))
-
-    try:
-        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
-            server.starttls()
-            server.login(SMTP_USER, SMTP_PASSWORD)
-            server.send_message(mensaje)
-        print("✅ Email enviado correctamente.")
-    except Exception as e:
-        print(f"❌ Error al enviar email: {e}")
-"""
+def obtener_tiempo_pasado(inicio, fin, latitud, longitud):
+    url = f"https://api.open-meteo.com/v1/forecast"
+    params = {
+        "latitude": latitud,
+        "longitude": longitud,
+        "start_date": inicio.strftime("%Y-%m-%d"),
+        "end_date": fin.strftime("%Y-%m-%d"),
+        "daily": "temperature_2m_max,precipitation_sum",
+        "timezone": "Europe/Madrid"
+    }
+    response = requests.get(url, params=params)
+    datos = response.json()["daily"]
+    return pd.DataFrame({
+        "fecha": pd.to_datetime(datos["time"]),
+        "temp_max": datos["temperature_2m_max"],
+        "precipitacion_mm": datos["precipitation_sum"]
+    })
 
 def enviar_email(resumen_df, pivot):
     from email.mime.text import MIMEText  # por si no lo tienes arriba
@@ -224,7 +246,7 @@ def enviar_email(resumen_df, pivot):
     """
 
     for _, fila in resumen_df.iterrows():
-        fecha = pd.to_datetime(fila["Fecha"])
+        fecha = pd.to_datetime(fila["fecha"])
         dia_semana = calendar.day_name[fecha.weekday()]  # Ej: 'Monday'
         comidas = int(fila["Comidas"])
         cenas = int(fila["Cenas"])
@@ -266,6 +288,7 @@ def enviar_email(resumen_df, pivot):
 
 # === PROCESAMIENTO HISTÓRICO ===
 inicio = datetime(2023, 3, 1)
+#inicio = datetime(2025, 5, 1)
 fin = datetime.today()
 periodo = timedelta(days=31)
 
@@ -294,7 +317,15 @@ pivot["festivo"] = pivot.index.to_series().apply(lambda x: 1 if x in es_holidays
 # eventos especiales
 pivot["evento_especial"] = pivot.index.astype(str).map(lambda x: 1 if x in eventos_especiales else 0)
 
-X = pivot[["día_semana", "mes", "festivo", "evento_especial"]]
+# Obtener datos meteorológicos históricos
+tiempo_historico = obtener_tiempo_pasado(inicio, fin, latitud=42.63, longitud=0.51)
+
+# Unir con el pivot
+pivot = pivot.reset_index()  # Esto moverá 'fecha' del índice a columna
+pivot["fecha"] = pd.to_datetime(pivot["fecha"])  # Convierte a datetime
+pivot = pivot.merge(tiempo_historico, on="fecha", how="left")
+
+X = pivot[["día_semana", "mes", "festivo", "evento_especial", "temp_max", "precipitacion_mm"]]
 y_comidas = pivot["n_comidas"]
 y_cenas = pivot["n_cenas"]
 
@@ -325,13 +356,22 @@ fechas_prediccion = [fecha_base  + timedelta(days=i) for i in range(7)]
 #fechas_prediccion = [hoy + timedelta(days=i) for i in range(7)]
 predicciones = []
 
+tiempo_df = obtener_pronostico_tiempo(fechas_prediccion)
+
 for fecha in fechas_prediccion:
-    comidas, cenas = predecir(datetime.combine(fecha, datetime.min.time()), modelo_comidas, modelo_cenas, eventos_especiales, es_holidays)
-    predicciones.append({"Fecha": fecha.strftime("%Y-%m-%d"), "Comidas": comidas, "Cenas": cenas})
+    fila_tiempo = tiempo_df[tiempo_df["fecha"] == pd.to_datetime(fecha)]
+    temp_max = fila_tiempo["temp_max"].values[0]
+    precip_mm = fila_tiempo["precipitacion_mm"].values[0]
+
+    comidas, cenas = predecir(datetime.combine(fecha, datetime.min.time()), modelo_comidas, modelo_cenas, eventos_especiales, es_holidays, temp_max, precip_mm)
+    predicciones.append({"fecha": fecha.strftime("%Y-%m-%d"), "Comidas": comidas, "Cenas": cenas})
 
 resumen_df = pd.DataFrame(predicciones)
-resumen_df["Día"] = pd.to_datetime(resumen_df["Fecha"]).dt.strftime("%A").str.capitalize()
-resumen_df = resumen_df[["Fecha", "Comidas", "Cenas", "Día"]]
+resumen_df["Día"] = pd.to_datetime(resumen_df["fecha"]).dt.strftime("%A").str.capitalize()
+resumen_df["Temp (°C)"] = tiempo_df["temp_max"].values
+resumen_df["Lluvia (mm)"] = tiempo_df["precipitacion_mm"].values
+resumen_df = resumen_df[["fecha", "Día", "Comidas", "Cenas", "Temp (°C)", "Lluvia (mm)"]]
+#resumen_df = resumen_df[["fecha", "Comidas", "Cenas", "Día"]]
 
 # === ENVÍO DE EMAIL ===
 enviar_email(resumen_df, pivot)
