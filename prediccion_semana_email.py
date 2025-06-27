@@ -13,95 +13,10 @@ import calendar
 from datetime import datetime, timedelta
 import argparse
 import locale
+from IA_Constants import *
 
 locale.setlocale(locale.LC_TIME, 'es_ES.UTF-8') 
 
-# === CONFIGURACIÓN ===
-API_URL = "https://api.waiterio.com/api/v3/meals"
-RESTAURANT_ID = "aee49d1fab0df0ab5e1644f7"
-
-SMTP_SERVER = "vl54004.dns-privadas.es"
-SMTP_PORT = 587
-SMTP_USER = "info@hoteleriste.com"
-SMTP_PASSWORD = "H3rist3"  # 🔒 Reemplaza por tu contraseña segura
-DESTINATARIO = "info@hoteleriste.com"
-
-eventos_especiales = {
-    #Fiestas de Sahún
-    "2023-06-23": "Fiestas Sahún 2023",
-    "2023-06-24": "Fiestas Sahún 2023",
-    "2024-06-22": "Fiestas Sahún 2024",
-    "2024-06-23": "Fiestas Sahún 2024",
-    "2024-06-24": "Fiestas Sahún 2024",
-    "2025-06-21": "Fiestas Sahún 2025",
-    "2025-06-22": "Fiestas Sahún 2025",
-    "2025-06-23": "Fiestas Sahún 2025",
-    "2025-06-24": "Fiestas Sahún 2025",
-    #Fiestas de Eriste
-    "2023-07-27": "Fiestas Eriste 2023",
-    "2023-07-28": "Fiestas Eriste 2023",
-    "2023-07-29": "Fiestas Eriste 2023",
-    "2023-07-30": "Fiestas Eriste 2023",
-    "2023-07-31": "Fiestas Eriste 2023",
-    "2023-08-01": "Fiestas Eriste 2023",
-    "2023-08-02": "Fiestas Eriste 2023",
-    "2024-07-31": "Fiestas Eriste 2024",
-    "2024-08-01": "Fiestas Eriste 2024",
-    "2024-08-02": "Fiestas Eriste 2024",
-    "2024-08-03": "Fiestas Eriste 2024",
-    "2024-08-04": "Fiestas Eriste 2024",
-    "2025-07-30": "Fiestas Eriste 2025",
-    "2025-07-31": "Fiestas Eriste 2025",
-    "2025-08-01": "Fiestas Eriste 2025",
-    "2025-08-02": "Fiestas Eriste 2025",
-    "2025-08-03": "Fiestas Eriste 2025",
-    #Fiestas de Benasque
-    "2023-06-28": "Fiestas Benasque 2023",
-    "2023-06-28": "Fiestas Benasque 2023",
-    "2023-06-29": "Fiestas Benasque 2023",
-    "2023-07-01": "Fiestas Benasque 2023",
-    "2023-07-02": "Fiestas Benasque 2023",
-    "2024-06-27": "Fiestas Benasque 2024",
-    "2024-06-28": "Fiestas Benasque 2024",
-    "2024-06-29": "Fiestas Benasque 2024",
-    "2024-06-30": "Fiestas Benasque 2024",
-    "2024-07-01": "Fiestas Benasque 2024",
-    "2025-06-27": "Fiestas Benasque 2025",
-    "2025-06-28": "Fiestas Benasque 2025",
-    "2025-06-29": "Fiestas Benasque 2025",
-    "2025-06-30": "Fiestas Benasque 2025",
-    "2025-07-01": "Fiestas Benasque 2025",
-    #Torneo de Basquet Valle Escondido
-    "2023-06-23": "Torneo Valle Escondido 2023",
-    "2023-06-24": "Torneo Valle Escondido 2023",
-    "2023-06-25": "Torneo Valle Escondido 2023",
-    "2024-06-21": "Torneo Valle Escondido 2024",
-    "2024-06-22": "Torneo Valle Escondido 2024",
-    "2024-06-23": "Torneo Valle Escondido 2024",
-    "2025-06-20": "Torneo Valle Escondido 2025",
-    "2025-06-21": "Torneo Valle Escondido 2025",
-    "2025-06-22": "Torneo Valle Escondido 2025",
-    #GTTAP
-    "2023-07-20": "GTTAP 2023",
-    "2023-07-21": "GTTAP 2023",
-    "2023-07-22": "GTTAP 2023",
-    "2023-07-23": "GTTAP 2023",
-    "2024-07-18": "GTTAP 2024",
-    "2024-07-19": "GTTAP 2024",
-    "2024-07-20": "GTTAP 2024",
-    "2024-07-21": "GTTAP 2024",
-    "2025-07-17": "GTTAP 2025",
-    "2025-07-18": "GTTAP 2025",
-    "2025-07-19": "GTTAP 2025",
-    "2025-07-20": "GTTAP 2025",
-    #GMMB
-    "2023-06-10": "GMMB 2023",
-    "2024-06-08": "GMMB 2024",
-    "2025-06-14": "GMMB 2025",
-    #Pitaroy
-    "2023-03-04": "Trofeo Pitarroy 2023",
-    "2025-03-01": "Trofeo Pitarroy 2025"
-}
 
 # === FUNCIONES ===
 ##############################
@@ -114,7 +29,7 @@ def get_meals(start, end):
         "startTime": start_ms,
         "endTime": end_ms
     }
-    response = requests.get(API_URL, params=params)
+    response = requests.get(WAITERIO_API_URL, params=params)
     return response.json() if response.status_code == 200 else []
 
 
@@ -165,10 +80,10 @@ def predecir(fecha, modelo_comidas, modelo_cenas, eventos_especiales, es_holiday
     return pred_com, pred_cen
 
 
-def obtener_pronostico_tiempo(fechas, lat=42.597, lon=0.515):
+def obtener_pronostico_tiempo(fechas, lat=LAT_ERISTE, lon=LON_ERISTE):
     fecha_inicio = min(fechas).strftime("%Y-%m-%d")
     fecha_fin = max(fechas).strftime("%Y-%m-%d")
-    url = "https://api.open-meteo.com/v1/forecast"
+    url = FORECAST_API_URL
     params = {
         "latitude": lat,
         "longitude": lon,
@@ -191,7 +106,7 @@ def obtener_pronostico_tiempo(fechas, lat=42.597, lon=0.515):
     return tiempo_df
 
 def obtener_tiempo_pasado(inicio, fin, latitud, longitud):
-    url = f"https://api.open-meteo.com/v1/forecast"
+    url = FORECAST_API_URL
     params = {
         "latitude": latitud,
         "longitude": longitud,
@@ -284,8 +199,6 @@ def enviar_email(resumen_df, pivot):
 
 
 
-
-
 # === PROCESAMIENTO HISTÓRICO ===
 inicio = datetime(2023, 3, 1)
 #inicio = datetime(2025, 5, 1)
@@ -318,7 +231,7 @@ pivot["festivo"] = pivot.index.to_series().apply(lambda x: 1 if x in es_holidays
 pivot["evento_especial"] = pivot.index.astype(str).map(lambda x: 1 if x in eventos_especiales else 0)
 
 # Obtener datos meteorológicos históricos
-tiempo_historico = obtener_tiempo_pasado(inicio, fin, latitud=42.63, longitud=0.51)
+tiempo_historico = obtener_tiempo_pasado(inicio, fin, latitud=LAT_ERISTE, longitud=0.51)
 
 # Unir con el pivot
 pivot = pivot.reset_index()  # Esto moverá 'fecha' del índice a columna
