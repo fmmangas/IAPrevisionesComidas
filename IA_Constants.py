@@ -1,6 +1,7 @@
 # === CONFIGURACIÓN ===
 WAITERIO_API_URL = "https://api.waiterio.com/api/v3/meals"
 FORECAST_API_URL = "https://api.open-meteo.com/v1/forecast"
+FORECAST_HISTORICAL_API_URL = "https://archive-api.open-meteo.com/v1/archive"
 RESTAURANT_ID = "aee49d1fab0df0ab5e1644f7"
 
 SMTP_SERVER = "vl54004.dns-privadas.es"

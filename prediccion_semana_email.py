@@ -106,7 +106,8 @@ def obtener_pronostico_tiempo(fechas, lat=LAT_ERISTE, lon=LON_ERISTE):
     return tiempo_df
 
 def obtener_tiempo_pasado(inicio, fin, latitud, longitud):
-    url = FORECAST_API_URL
+    #url = FORECAST_API_URL
+    url = FORECAST_HISTORICAL_API_URL
     params = {
         "latitude": latitud,
         "longitude": longitud,
